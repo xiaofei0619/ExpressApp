@@ -37,31 +37,27 @@ datalist.map(item => {
     data[item['id']] = item;
 });
 
-// app.get('/', (req, res) => {
-//     res.send(`
-//     <html>
-//         <head>
-//             <title>Express Basic App</title>
-//         </head>
-//         <body>
-//             <h1>My Simple App</h1>
-//             <p>Welcome to my simple app</p>
-//         </body>
-//     </html>`)
-// });
-
-// app.get('/data', (req, res) => {
-//     res.json(data);
-// });
-
 app.get('/', (req, res) => {
+    res.send(`
+    <html>
+        <head>
+            <title>Express Basic App</title>
+        </head>
+        <body>
+            <h1>My Simple App</h1>
+            <p>Welcome to my simple app</p>
+        </body>
+    </html>`)
+});
+
+app.get('/data', (req, res) => {
     res.json(data);
 });
 
 app.get('/data/:id', (req, res, next) => {
     console.log(`Looking for ID ${req.params.id}`);
     let user = Number(req.params.id);
-    res.send(data[user - 1]);
+    res.send(data[user]);
     next();
 }, (req, res, next) => {
     console.log('Did we get the right data?');
@@ -157,7 +153,7 @@ const schema = buildSchema(`
         gender: String
     }
 
-    type Doohikey {
+    type Doohickey {
         id: ID
         name: String
         description: String
@@ -165,12 +161,63 @@ const schema = buildSchema(`
 
     type Query {
         hello: String
+        contacts: [Contact]
+        doohickeys: [Doohickey]
+    }
+
+    input DoohickeyInput {
+        name: String
+        description: String
+    }
+
+    input DoohickeyID {
+        id: String
+    }
+
+    type Mutation {
+        createDoohickey(input: DoohickeyInput): Doohickey
+        deleteDoohickey(input: DoohickeyID): Doohickey
     }
 `);
 
 const root = {
     hello: () => {
         return "Hello World"
+    },
+    contacts: () => {
+        return Object.keys(data).map(d => new Contact(
+            data[d].id,
+            data[d].first_name,
+            data[d].last_name,
+            data[d].email,
+            data[d].gender,
+        ))
+    },
+    doohickeys: () => {
+        console.log("Request for doohickeys");
+        return collection.find({}).toArray().then(docs => {
+            return docs.map(d => new Doohickey(d._id, d.name, d.description));
+        });
+    },
+    createDoohickey: ({ input }) => {
+        const { name, description } = input;
+        return collection.insertOne({
+            name,
+            description
+        }).then(i => {
+            return {
+                id: i.insertedId,
+                ...input
+            }
+        });
+    },
+    deleteDoohickey: ({ input }) => {
+        const { id } = input;
+        return collection.deleteOne({
+            _id: new mongo.ObjectId(id)
+        }).then(() => {
+            return { id };
+        });
     }
 }
 
@@ -180,6 +227,68 @@ app.use('/graphql', graphqlHTTP({
     graphiql: true,
 }));
 
+// Some HTML
+app.get('/graphqlReq', (req, res) => {
+    res.send(graphqlRequestPageHTML());
+})
+
 app.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
 })
+
+function graphqlRequestPageHTML() {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>GraphQL Request Page</title>
+    </head>
+    <body> 
+        <p>
+            <button id="getDoohickeys" type="button">Click for doohickeys</button>
+        </p>
+        <div>
+            <table id="doohickeys" style="width:100%">
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                </tr>
+            </table>
+        </div>
+    </body>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script>
+    $( document ).ready(function(){
+        $("#getDoohickeys").click(function(){
+            $.ajax({
+                url: "http://localhost:${PORT}/graphql",
+                contentType: "application/json",
+                type: 'POST',
+                data: JSON.stringify({
+                    query: \`{
+                        doohickeys {
+                            name
+                            description
+                        }
+                    }\`
+                }),
+                success: function(result) {
+                    console.log("Success");
+                    console.log(JSON.stringify(result.data));
+                    result.data.doohickeys.forEach(item => {
+                        console.log(item);
+                        $("#doohickeys").append(
+                            \`<tr>
+                                <td>\${item.name}</td>
+                                <td>\${item.description}</td>
+                            </tr>\`
+                        );
+                    })
+                }
+            });
+        });
+    });
+    </script>
+    </html>`
+}

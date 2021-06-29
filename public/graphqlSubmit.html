@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+    <html>
+        <head>
+            <title>GraphQL Submit Page</title>
+        </head>
+        <body>
+            <div>
+                <form id="doohickey_form">
+                    <label for="name">Doohickey name:</label><br>
+                    <input type="text" id="name" name="name"><br>
+                    <label for="description">Doohickey description:</label><br>
+                    <input type="text" id="description" name="description">
+                    <br>
+                    <input type="submit" value="Submit">
+                </form>
+            </div>
+
+            <div id="doohickeys">
+            </div>
+        </body>
+
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+        <script>
+            $( document ).ready(function() {
+                $( "form" ).submit(function( event ) {
+                // alert( "Handler for .submit() on a form called." )
+                    $.ajax({
+                        url: `http://localhost:3030/graphql`,
+                        contentType: "application/json",
+                        type: 'POST',
+                        data: JSON.stringify({
+                            query: `mutation(
+                            $name: String!,
+                            $description: String!
+                        ){
+                            createDoohickey(
+                                input: {
+                                    name: $name,
+                                    description: $description
+                                }) {
+                                    id
+                                    name
+                                }
+                        }`,
+                            variables: {
+                                "name": $("#name").val(),
+                                "description": $("#description").val()
+                            }
+                        }),
+                        success: function (result) {
+                            console.log("Success");
+                            console.log(JSON.stringify(result.data));
+                            console.log(result.data.createDoohickey.id);
+                            $("#doohickeys").append(
+                                `<h2>${result.data.createDoohickey.name}
+                                is added with ID ${result.data.createDoohickey.id}</h2>`
+                            );
+                        },
+                        error: function (e, req) {
+                            console.log('Oops');
+                            console.log(e.statusText);
+                        }
+                    });
+                    event.preventDefault();
+                });
+            });
+        </script>
+    </html>
